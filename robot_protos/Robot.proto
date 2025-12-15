@@ -22,6 +22,6 @@ message RobotStateStamped {
     ROBOTMODE robot_mode = 2;
     bool calibrated = 3;
     bool triggered = 4;
-    bool error = 4;
-    int error_code = 4;
+    bool error = 5;
+    int error_code = 6;
 }
