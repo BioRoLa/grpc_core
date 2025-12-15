@@ -14,4 +14,5 @@ message SteeringStateStamped {
     double current_angle = 2;
     bool current_state = 3;
     uint32 cmd_finish = 4;
+    bool steering_cali = 5;
 }
