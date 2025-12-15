@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package config_msg;
+import "std.proto";
+
+enum Module {
+  MODULE_A = 0;
+  MODULE_B = 1;
+  MODULE_C = 2;
+  MODULE_D = 3;
+}
+
+enum Motor {
+  MOTOR_R = 0;
+  MOTOR_L = 1;
+}
+
+enum ConfigMode {
+  READ = 0;
+  WRITE = 1;
+}
+
+enum ConfigType {
+  INT = 0;
+  FLOAT = 1;
+}
+
+message ConfigStamped {
+  std_msg.Header header = 1;
+  bool transmit = 2;
+  Module module = 3;
+  Motor motor = 4;
+  ConfigMode mode = 5;
+  ConfigType type = 6;
+  int32 address = 7;
+  float value_f = 8;
+  int32 value_i = 9;
+  int32 error_code = 10;
+  
+}
