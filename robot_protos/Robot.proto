@@ -7,21 +7,19 @@ enum ROBOTMODE {
     SYSTEM_ON=0;
     INIT=1;
     IDLE=2;
-    CONFIG=3;
+    MOTORCONFIG=3;
     STANDBY=4;
 }
 
 message RobotCmdStamped {
     std_msg.Header header = 1;
     ROBOTMODE request_robot_mode = 2;
-    bool trigger = 3;
 }
 
 message RobotStateStamped {
     std_msg.Header header = 1;
     ROBOTMODE robot_mode = 2;
     bool calibrated = 3;
-    bool triggered = 4;
-    bool error = 5;
-    int error_code = 6;
+    bool error = 4;
+    uint32 error_code = 5;
 }
