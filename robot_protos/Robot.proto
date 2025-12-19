@@ -7,8 +7,8 @@ enum ROBOTMODE {
     SYSTEM_ON=0;
     INIT=1;
     IDLE=2;
-    MOTORCONFIG=3;
-    STANDBY=4;
+    STANDBY=3;
+    MOTORCONFIG=4;
 }
 
 message RobotCmdStamped {
