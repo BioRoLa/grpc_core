@@ -14,6 +14,7 @@ enum ROBOTMODE {
 message RobotCmdStamped {
     std_msg.Header header = 1;
     ROBOTMODE request_robot_mode = 2;
+    bool request_update = 3;
 }
 
 message RobotStateStamped {
