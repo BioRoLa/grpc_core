@@ -19,7 +19,4 @@ message RobotCmdStamped {
 message RobotStateStamped {
     std_msg.Header header = 1;
     ROBOTMODE robot_mode = 2;
-    bool calibrated = 3;
-    bool error = 4;
-    uint32 error_code = 5;
 }
