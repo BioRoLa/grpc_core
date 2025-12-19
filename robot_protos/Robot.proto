@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package motor_msg;
+package robot_msg;
 import "std.proto";
 
 enum ROBOTMODE {
