@@ -125,7 +125,9 @@ void Logger::outputLocal(const log_msg::LogEntry& entry) {
     // Output format: [TIME.USEC] [LEVEL] [NODE] message
     std::cerr << "[" << time_buf << "." 
               << std::setfill('0') << std::setw(6) << entry.header().stamp().usec() << "] "
-              << color << BOLD << "[" << std::left << std::setfill(' ') << std::setw(5) << level_str << "]" << RESET << " "
+              << color << BOLD << "["
+              << std::setfill(' ') << std::left << std::setw(5) << level_str 
+              << "]" << RESET << " "
               << "[" << entry.node_name() << "] "
               << entry.message()
               << std::endl;
