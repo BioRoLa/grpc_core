@@ -60,6 +60,202 @@ This is the basic ServiceServer/Client protocol, if you launch multiple Server o
 The self-defined messages are put in the *robot_protos* file.  
 Please refer to [grpc_node_test](https://github.com/kyle1548/grpc_node_test) for usage instructions.
 
+# Logger System
+grpc_core provides a comprehensive logging system with ROS-compatible log levels and stream-style output.
+
+## Log Levels
+- **DEBUG**: Detailed debugging information
+- **INFO**: General informational messages
+- **WARN**: Warning messages
+- **ERROR**: Error messages
+- **FATAL**: Fatal error messages
+
+## Basic Usage
+
+### Creating a Logger
+```cpp
+#include "Logger.h"
+
+// Create logger instance
+core::Logger logger("node_name");
+
+// Or use global logger (optional)
+core::GlobalLogger::init("global_node");
+```
+
+### Stream-Style Logging (Recommended)
+```cpp
+LOG_DEBUG(logger) << "Debug message: " << variable;
+LOG_INFO(logger) << "Info message: " << value;
+LOG_WARN(logger) << "Warning: " << warning_msg;
+LOG_ERROR(logger) << "Error: " << error_code;
+LOG_FATAL(logger) << "Fatal error!";
+
+// Using global logger
+GLOG_INFO << "Global info message";
+GLOG_WARN << "Global warning";
+```
+
+### Direct Method Logging
+```cpp
+logger.debug("Debug message");
+logger.info("Info message");
+logger.warn("Warning message");
+logger.error("Error message");
+logger.fatal("Fatal error");
+```
+
+## Advanced Logging Macros
+
+### Conditional Logging
+Log only when condition is true:
+```cpp
+LOG_INFO_IF(logger, temperature > 100) << "High temperature: " << temperature;
+LOG_WARN_IF(logger, battery < 20) << "Low battery: " << battery;
+```
+
+### Throttled Logging
+Log at most once per time interval (in milliseconds):
+```cpp
+// Log at most once per second (1000ms)
+LOG_WARN_THROTTLE(logger, 1000) << "Periodic warning message";
+LOG_THROTTLE_END
+
+LOG_INFO_THROTTLE(logger, 500) << "This logs every 500ms maximum";
+LOG_THROTTLE_END
+```
+
+### Log Every N Occurrences
+```cpp
+// Log every 100 times
+LOG_INFO_EVERY_N(logger, 100) << "Periodic info message";
+
+// Log every 50 times
+LOG_DEBUG_EVERY_N(logger, 50) << "Debug every 50 calls";
+```
+
+### Log Only Once
+Log message only on first occurrence:
+```cpp
+LOG_WARN_ONCE(logger) << "This warning appears only once";
+LOG_INFO_ONCE(logger) << "Initialization complete";
+```
+
+### Log When Condition Changes
+Log only when condition transitions from false to true:
+```cpp
+// Logs only when voltage drops below 10.0 (state change)
+LOG_WARN_CHANGED(logger, voltage < 10.0) << "Low voltage: " << voltage;
+
+// Logs when motor becomes active
+LOG_INFO_CHANGED(logger, motor_active) << "Motor started";
+```
+
+## Logger Configuration
+
+### Set Minimum Log Level
+Filter out log messages below specified level:
+```cpp
+// Only show INFO and above (filters out DEBUG)
+logger.setMinLevel(core::LogLevel::INFO);
+
+// Show all messages including DEBUG
+logger.setMinLevel(core::LogLevel::DEBUG);
+
+// Show only errors
+logger.setMinLevel(core::LogLevel::ERROR);
+```
+
+### Enable/Disable Outputs
+```cpp
+// Enable/disable console output
+logger.setLocalOutput(true);   // Show in console
+logger.setLocalOutput(false);  // Hide console output
+
+// Enable/disable remote publishing
+logger.setRemoteOutput(true);  // Publish to remote
+logger.setRemoteOutput(false); // Disable remote publishing
+```
+
+### Remote Publishing Callback
+Set custom callback for remote logging:
+```cpp
+// Create publisher for log messages
+core::Publisher<log_msg::LogEntry>& log_pub = 
+    nh.advertise<log_msg::LogEntry>("log_topic");
+
+// Set publish callback
+logger.setPublishCallback([&log_pub](const log_msg::LogEntry& entry) {
+    log_pub.publish(entry);
+});
+```
+
+## Complete Example
+```cpp
+#include "NodeHandler.h"
+#include "Logger.h"
+
+int main() {
+    // Initialize node handler
+    core::NodeHandler nh;
+    
+    // Create logger
+    core::Logger logger("my_node");
+    
+    // Configure logger
+    logger.setMinLevel(core::LogLevel::DEBUG);
+    logger.setLocalOutput(true);
+    logger.setRemoteOutput(true);
+    
+    // Setup remote publishing
+    core::Publisher<log_msg::LogEntry>& log_pub = 
+        nh.advertise<log_msg::LogEntry>("/logs");
+    logger.setPublishCallback([&log_pub](const log_msg::LogEntry& entry) {
+        log_pub.publish(entry);
+    });
+    
+    // Example usage
+    int counter = 0;
+    double temperature = 25.0;
+    
+    while (true) {
+        counter++;
+        
+        // Basic logging
+        LOG_INFO(logger) << "Loop iteration: " << counter;
+        
+        // Conditional logging
+        LOG_WARN_IF(logger, temperature > 80) << "High temp: " << temperature;
+        
+        // Throttled logging (once per second)
+        LOG_DEBUG_THROTTLE(logger, 1000) << "Periodic debug";
+        LOG_THROTTLE_END
+        
+        // Log every N times
+        LOG_INFO_EVERY_N(logger, 100) << "Processed " << counter << " iterations";
+        
+        // Log only once
+        LOG_INFO_ONCE(logger) << "System initialized";
+        
+        // Log on state change
+        LOG_WARN_CHANGED(logger, temperature > 90) << "Overheating!";
+        
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    
+    return 0;
+}
+```
+
+## Features
+- **Thread-safe**: Safe to use across multiple threads
+- **Real-time output**: Console and remote publishing support
+- **ROS-compatible**: Compatible with ROS logging levels
+- **Flexible filtering**: Configurable minimum log level
+- **Rich macros**: Conditional, throttled, periodic, and state-change logging
+- **Stream-style API**: Modern C++ stream operators for easy formatting
+- **Remote publishing**: Publish logs via gRPC for distributed systems
+
 # On sbRIO
 If you are compiling on sbRIO (Single-Board RIO), you need to make the following modifications.
 * Due to the old version of libraries on sbRIO, use c++14 instead of c++17 by modifying **CMakeLists.txt**.

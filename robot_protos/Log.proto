@@ -1,0 +1,21 @@
+syntax = "proto3";
+package log_msg;
+import "std.proto";
+
+// Log level enum - uses minimal bytes for efficient transmission
+// Compatible with ROS logging system
+enum LogLevel {
+    DEBUG = 0;
+    INFO = 1;
+    WARN = 2;
+    ERROR = 3;
+    FATAL = 4;
+}
+
+// Log entry message
+message LogEntry {
+    std_msg.Header header = 1;     // Timestamp + sequence number + frame_id
+    LogLevel level = 2;            // Log severity level
+    string node_name = 3;          // Source node name
+    string message = 4;            // Log message content
+}
