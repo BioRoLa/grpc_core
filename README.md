@@ -182,7 +182,7 @@ Set custom callback for remote logging:
 ```cpp
 // Create publisher for log messages
 core::Publisher<log_msg::LogEntry>& log_pub = 
-    nh.advertise<log_msg::LogEntry>("log_topic");
+    nh.advertise<log_msg::LogEntry>("log_topic", [buffer size]);
 
 // Set publish callback
 logger.setPublishCallback([&log_pub](const log_msg::LogEntry& entry) {
@@ -209,7 +209,7 @@ int main() {
     
     // Setup remote publishing
     core::Publisher<log_msg::LogEntry>& log_pub = 
-        nh.advertise<log_msg::LogEntry>("/logs");
+        nh.advertise<log_msg::LogEntry>("/logs", [buffer size]);
     logger.setPublishCallback([&log_pub](const log_msg::LogEntry& entry) {
         log_pub.publish(entry);
     });
