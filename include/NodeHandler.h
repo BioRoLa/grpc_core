@@ -343,7 +343,8 @@ namespace core {
                 {
                     std::lock_guard<std::mutex> lock_(this->queue_mutex_);
                     if (this->msgs_queue.size() > 0) {
-                        this->cb_func(this->msgs_queue.back());
+                        this->cb_func(this->msgs_queue.front());
+                        this->msgs_queue.pop();
                     }
                 }
             }
