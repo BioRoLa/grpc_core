@@ -46,7 +46,7 @@ namespace core {
     class Subscriber : public Communicator {
         using FunctionType = void(*)(T);
         public:
-        Subscriber(std::string topic, float freq, void (*func)(T), NodeHandler *nh) ;
+        Subscriber(std::string topic, float freq, void (*func)(T), NodeHandler *nh, int maxSize = 1) ;
         void call(std::string &ip, uint32_t &port, float &freq) override {
             std::lock_guard<std::mutex> lock(this->mutex_);
             ip = this->tcp_ip;
@@ -65,13 +65,13 @@ namespace core {
         std::string tcp_ip;
         float rate;
         AcceptorSocket tcp_acceptor;
-        int maxSize = 10;
+        int maxSize = 1;
         std::string topic_name;
     };
     template<class T>
     class Publisher : public Communicator {
         public:
-        Publisher(std::string topic, NodeHandler *nh);
+        Publisher(std::string topic, NodeHandler *nh, int maxSize = 1);
         void publish(T msg) {
             int siz = msg.ByteSize() + 4;
             char *buf = new char [siz];
@@ -120,7 +120,7 @@ namespace core {
         std::mutex queue_mutex_;
         std::queue<std::string> msg_queue;
         std::string topic_name;
-        int maxSize = 10;
+        int maxSize = 1;
     };
     template<class RequestT, class ReplyT>
     class ServiceServer : public Communicator {
@@ -169,16 +169,16 @@ namespace core {
         public:
         NodeHandler();
         template<class T>
-        Subscriber<T>& subscribe(std::string topic, float freq, void (*func)(T)) {
-            std::shared_ptr<Subscriber<T> > sub = std::make_shared<Subscriber<T> >(topic, freq, func, this);
+        Subscriber<T>& subscribe(std::string topic, float freq, void (*func)(T), int maxSize = 1) {
+            std::shared_ptr<Subscriber<T> > sub = std::make_shared<Subscriber<T> >(topic, freq, func, this, maxSize);
             std::lock_guard<std::mutex> lock(mutex_);
             this->subscribers[topic] = sub;
             usleep(100000);
             return *sub;
         }
         template<class T>
-        Publisher<T>& advertise(std::string topic) {
-            std::shared_ptr<Publisher<T> > pub =  std::make_shared<Publisher<T> >(topic, this);
+        Publisher<T>& advertise(std::string topic, int maxSize = 1) {
+            std::shared_ptr<Publisher<T> > pub =  std::make_shared<Publisher<T> >(topic, this, maxSize);
             std::lock_guard<std::mutex> lock(mutex_);
             this->publishers[topic] = pub;
             usleep(100000);
@@ -259,8 +259,8 @@ namespace core {
         NodeHandler *nh_;
     };
     template<class T>
-    Subscriber<T>::Subscriber(std::string topic, float freq, void (*func)(T), NodeHandler *nh) :
-        topic_name(topic), rate(freq), cb_func(func), nh_(nh)
+    Subscriber<T>::Subscriber(std::string topic, float freq, void (*func)(T), NodeHandler *nh, int maxSize) :
+        topic_name(topic), rate(freq), cb_func(func), nh_(nh), maxSize(maxSize)
     {
         /* Part I. start accepting and receiving from tcp port */
         {
@@ -353,8 +353,8 @@ namespace core {
         spin_thread_.detach();
     }
     template<class T>
-    Publisher<T>::Publisher(std::string topic, NodeHandler *nh) :
-        topic_name(topic), nh_(nh) {
+    Publisher<T>::Publisher(std::string topic, NodeHandler *nh, int maxSize) :
+        topic_name(topic), nh_(nh), maxSize(maxSize) {
         PublishRequest request;
         { 
             std::lock_guard<std::mutex> lock(nh_->mutex_);
