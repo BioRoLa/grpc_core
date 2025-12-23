@@ -81,7 +81,7 @@ namespace core {
             msg.SerializeToCodedStream(coded_output);
             delete coded_output;
             std::lock_guard<std::mutex> lock(this->queue_mutex_);
-            if (msg_queue.size() > maxSize) msg_queue.pop();
+            if (msg_queue.size() >= maxSize) msg_queue.pop();
             msg_queue.push(std::string(buf, siz));
             delete [] buf;
         }
@@ -286,7 +286,7 @@ namespace core {
                                 bool ret = srv_sock->SocketHandler(msg);
                                 if (ret) {
                                     std::lock_guard<std::mutex> lock(this->queue_mutex_);
-                                    if (this->msgs_queue.size() > maxSize) this->msgs_queue.pop();
+                                    if (this->msgs_queue.size() >= maxSize) this->msgs_queue.pop();
                                     this->msgs_queue.push(msg);
                                 }
                                 else {
