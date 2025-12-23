@@ -16,10 +16,6 @@ message RobotCmdStamped {
     ROBOTMODE request_robot_mode = 2;
 }
 
-message RobotRequestUpdate {
-    bool mode_update = 1;
-}
-
 message RobotStateStamped {
     std_msg.Header header = 1;
     ROBOTMODE robot_mode = 2;
