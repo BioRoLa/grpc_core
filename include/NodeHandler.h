@@ -271,7 +271,7 @@ namespace core {
         bool ret = false;
         tcp_acceptor = AcceptorSocket(this->tcp_ip, this->tcp_port, ret);
         if (ret) {
-            std::thread acceptor_thread_ = std::thread([this]() {
+            std::thread acceptor_thread_ = std::thread([this, maxSize]() {
                 while (1) {
                     bool ret;
                     int sock;
