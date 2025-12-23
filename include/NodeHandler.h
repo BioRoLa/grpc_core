@@ -279,7 +279,7 @@ namespace core {
                     std::cout << "Successful Create acceptor socket\n";
                     if (ret) {
                         std::shared_ptr<ServerSocket<T> > srv_sock = std::make_shared<ServerSocket<T> >(sock);
-                        std::thread receive_thread_ = std::thread([this, srv_sock]() {
+                        std::thread receive_thread_ = std::thread([this, srv_sock, maxSize]() {
                             std::cout << "Successful Connected as subscriber " << this->tcp_ip << ":" << this->tcp_port << "\n";
                             while (1) {
                                 T msg;
