@@ -1,6 +1,54 @@
 # grpc_core
 This project is a light-weight publisher-subscriber/service(Server-Client) communicate protocol based on gRPC. For cases having difficulty on installing ROS, or needy to combine control system to web page.
 
+# Changelog
+
+## [dev branch] - December 23, 2025
+
+### Added
+- **Comprehensive Logger System**: Implemented a full-featured logging system with ROS-compatible log levels (DEBUG, INFO, WARN, ERROR, FATAL)
+  - Stream-style logging API with modern C++ operators
+  - Advanced logging macros: conditional (`LOG_*_IF`), throttled (`LOG_*_THROTTLE`), periodic (`LOG_*_EVERY_N`), once (`LOG_*_ONCE`), and state-change (`LOG_*_CHANGED`) logging
+  - Configurable minimum log level filtering
+  - Thread-safe operations
+  - Remote publishing support via gRPC
+  - Both local console and remote output options
+  - New files: `include/Logger.h` (300 lines), `src/Logger.cpp` (212 lines)
+  
+- **Robot Protocol Definitions**: 
+  - `Config.proto`: Configuration message definitions (40 lines)
+  - `Log.proto`: Log message definitions for the logging system (21 lines)
+  - `Robot.proto`: Robot mode and command messages with ROBOTMODE enum (SYSTEM_ON, INIT, IDLE, STANDBY, MOTORCONFIG)
+  
+- **Enhanced Motor and Power Protocols**:
+  - Motor.proto: Added 9 new lines of motor control definitions
+  - Steering.proto: Added 1 line of steering-related definitions
+
+### Changed
+- **NodeHandler API**: Updated Publisher and Subscriber constructors to include `maxSize` parameter with default value for better buffer management
+- **Message Queue Order**: Fixed message retrieval order in Communicator (changed from back to front of the queue for correct FIFO behavior)
+- **Power.proto Refactoring**: Streamlined and reorganized (reduced from 68 lines to more efficient structure)
+- **Log Output Formatting**: Improved log level alignment and readability in console output
+
+### Removed
+- **Robot.proto**: Removed `RobotRequestUpdate` message (previously had `mode_update` field) - functionality consolidated into `RobotCmdStamped`
+
+### Fixed
+- ROBOTMODE enum order: Corrected the ordering by swapping MOTORCONFIG and STANDBY values
+- Package declarations: Fixed namespace consistency in Robot.proto
+- Field indices: Corrected error and error_code field indices in RobotStateStamped message
+- Message queue handling: Multiple iterations to ensure correct FIFO behavior
+
+### Statistics
+- **11 files changed**: 869 insertions(+), 59 deletions(-)
+- **Major additions**: Logger system (512 lines), extended README documentation (196 lines)
+- **16 commits** ahead of main branch with iterative improvements and fixes
+
+### Migration Notes
+- If using `Publisher` or `Subscriber`, note the new optional `maxSize` parameter in constructors
+- Applications using `RobotRequestUpdate` message should migrate to using `RobotCmdStamped` with the `request_robot_mode` field
+- Logger system is fully backward compatible - existing code will continue to work
+
 # preliminary
 Install gRPC: https://grpc.io/docs/languages/cpp/quickstart/  
 
