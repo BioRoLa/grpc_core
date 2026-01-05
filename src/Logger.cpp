@@ -2,6 +2,8 @@
 #include <iostream>
 #include <iomanip>
 #include <ctime>
+#include <libgen.h>  // For basename()
+#include <cstring>   // For strdup()
 
 namespace core {
 
@@ -26,71 +28,68 @@ namespace {
             default:              return WHITE;
         }
     }
-}
-
-// ==================== LogStream Implementation ====================
-
-LogStream::LogStream(Logger& logger, LogLevel level)
-    : logger_(logger)
-    , level_(level)
-    , active_(level >= logger.getMinLevel())
-{
-}
-
-LogStream::~LogStream() {
-    if (active_ && !ss_.str().empty()) {
-        logger_.log(level_, ss_.str());
+    
+    // Extract filename from full path
+    std::string getFileName(const char* path) {
+        if (!path) return "";
+        char* pathCopy = strdup(path);
+        std::string filename = basename(pathCopy);
+        free(pathCopy);
+        return filename;
     }
 }
 
-LogStream::LogStream(LogStream&& other) noexcept
-    : logger_(other.logger_)
-    , level_(other.level_)
-    , ss_(std::move(other.ss_))
-    , active_(other.active_)
-{
-    other.active_ = false;
-}
+// ==================== GlobalLoggerImpl Implementation ====================
 
-// ==================== Logger Implementation ====================
-
-Logger::Logger(const std::string& node_name, 
-               LogPublishCallback publish_callback)
-    : node_name_(node_name)
+GlobalLoggerImpl::GlobalLoggerImpl()
+    : node_name_("unknown")
     , min_level_(LogLevel::DEBUG)
     , local_output_(true)
-    , remote_output_(publish_callback != nullptr)
-    , publish_callback_(publish_callback)
+    , remote_output_(false)
+    , initialized_(false)
     , seq_(0)
 {
 }
 
-void Logger::setPublishCallback(LogPublishCallback callback) {
+GlobalLoggerImpl& GlobalLoggerImpl::instance() {
+    static GlobalLoggerImpl instance;
+    return instance;
+}
+
+void GlobalLoggerImpl::init(const std::string& node_name) {
+    auto& impl = instance();
+    std::lock_guard<std::mutex> lock(impl.mutex_);
+    impl.node_name_ = node_name;
+    impl.initialized_ = true;
+}
+
+void GlobalLoggerImpl::setPublishCallback(LogPublishCallback callback) {
     std::lock_guard<std::mutex> lock(mutex_);
     publish_callback_ = callback;
     remote_output_ = (callback != nullptr);
 }
 
-void Logger::setMinLevel(LogLevel level) {
+void GlobalLoggerImpl::setMinLevel(LogLevel level) {
     std::lock_guard<std::mutex> lock(mutex_);
     min_level_ = level;
 }
 
-LogLevel Logger::getMinLevel() const {
+LogLevel GlobalLoggerImpl::getMinLevel() const {
     return min_level_;
 }
 
-void Logger::setLocalOutput(bool enabled) {
+void GlobalLoggerImpl::setLocalOutput(bool enabled) {
     std::lock_guard<std::mutex> lock(mutex_);
     local_output_ = enabled;
 }
 
-void Logger::setRemoteOutput(bool enabled) {
+void GlobalLoggerImpl::setRemoteOutput(bool enabled) {
     std::lock_guard<std::mutex> lock(mutex_);
     remote_output_ = enabled;
 }
 
-log_msg::LogEntry Logger::createEntry(LogLevel level, const std::string& message) {
+log_msg::LogEntry GlobalLoggerImpl::createEntry(LogLevel level, const std::string& message,
+                                                  const char* file, int line) {
     log_msg::LogEntry entry;
     
     // Set Header with timestamp
@@ -105,12 +104,19 @@ log_msg::LogEntry Logger::createEntry(LogLevel level, const std::string& message
     // Set log content
     entry.set_level(toProtoLevel(level));
     entry.set_node_name(node_name_);
-    entry.set_message(message);
+    
+    // Include file:line info if available
+    if (file && line > 0) {
+        std::string filename = getFileName(file);
+        entry.set_message("[" + filename + ":" + std::to_string(line) + "] " + message);
+    } else {
+        entry.set_message(message);
+    }
     
     return entry;
 }
 
-void Logger::outputLocal(const log_msg::LogEntry& entry) {
+void GlobalLoggerImpl::outputLocal(const log_msg::LogEntry& entry) {
     // Format timestamp
     time_t sec = entry.header().stamp().sec();
     struct tm* tm_info = localtime(&sec);
@@ -133,18 +139,19 @@ void Logger::outputLocal(const log_msg::LogEntry& entry) {
               << std::endl;
 }
 
-void Logger::publish(const log_msg::LogEntry& entry) {
+void GlobalLoggerImpl::publish(const log_msg::LogEntry& entry) {
     if (publish_callback_) {
         publish_callback_(entry);
     }
 }
 
-void Logger::log(LogLevel level, const std::string& message) {
+void GlobalLoggerImpl::log(LogLevel level, const std::string& message,
+                            const char* file, int line) {
     if (level < min_level_) return;
     
     std::lock_guard<std::mutex> lock(mutex_);
     
-    log_msg::LogEntry entry = createEntry(level, message);
+    log_msg::LogEntry entry = createEntry(level, message, file, line);
     
     // Local console output
     if (local_output_) {
@@ -157,56 +164,30 @@ void Logger::log(LogLevel level, const std::string& message) {
     }
 }
 
-LogStream Logger::stream(LogLevel level) {
-    return LogStream(*this, level);
+// ==================== GlobalLogStream Implementation ====================
+
+GlobalLogStream::GlobalLogStream(LogLevel level, const char* file, int line)
+    : level_(level)
+    , file_(file)
+    , line_(line)
+    , active_(level >= GlobalLoggerImpl::instance().getMinLevel())
+{
 }
 
-// Shortcut methods
-void Logger::debug(const std::string& msg) {
-    log(LogLevel::DEBUG, msg);
-}
-
-void Logger::info(const std::string& msg) {
-    log(LogLevel::INFO, msg);
-}
-
-void Logger::warn(const std::string& msg) {
-    log(LogLevel::WARN, msg);
-}
-
-void Logger::error(const std::string& msg) {
-    log(LogLevel::ERROR, msg);
-}
-
-void Logger::fatal(const std::string& msg) {
-    log(LogLevel::FATAL, msg);
-}
-
-// ==================== GlobalLogger Implementation ====================
-
-std::unique_ptr<Logger> GlobalLogger::logger_;
-std::mutex GlobalLogger::mutex_;
-bool GlobalLogger::initialized_ = false;
-
-Logger& GlobalLogger::instance() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    if (!logger_) {
-        // Create default logger with local output only
-        logger_ = std::make_unique<Logger>("default");
+GlobalLogStream::~GlobalLogStream() {
+    if (active_ && !ss_.str().empty()) {
+        GlobalLoggerImpl::instance().log(level_, ss_.str(), file_, line_);
     }
-    return *logger_;
 }
 
-void GlobalLogger::init(const std::string& node_name, 
-                        LogPublishCallback publish_callback) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    logger_ = std::make_unique<Logger>(node_name, publish_callback);
-    initialized_ = true;
-}
-
-bool GlobalLogger::isInitialized() {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return initialized_;
+GlobalLogStream::GlobalLogStream(GlobalLogStream&& other) noexcept
+    : level_(other.level_)
+    , file_(other.file_)
+    , line_(other.line_)
+    , ss_(std::move(other.ss_))
+    , active_(other.active_)
+{
+    other.active_ = false;
 }
 
 } // namespace core

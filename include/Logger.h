@@ -15,8 +15,7 @@
 namespace core {
 
 // Forward declarations
-class Logger;
-class LogStream;
+class GlobalLogStream;
 
 /**
  * @brief Log severity levels (compatible with ROS logging system)
@@ -57,75 +56,47 @@ inline log_msg::LogLevel toProtoLevel(LogLevel level) {
 using LogPublishCallback = std::function<void(const log_msg::LogEntry&)>;
 
 /**
- * @brief Log stream class for stream-style logging
- * @example LOG_INFO(logger) << "value: " << 123;
- */
-class LogStream {
-public:
-    LogStream(Logger& logger, LogLevel level);
-    ~LogStream();
-    
-    // Disable copy
-    LogStream(const LogStream&) = delete;
-    LogStream& operator=(const LogStream&) = delete;
-    
-    // Enable move
-    LogStream(LogStream&& other) noexcept;
-    
-    // Stream operator
-    template<typename T>
-    LogStream& operator<<(const T& value) {
-        if (active_) {
-            ss_ << value;
-        }
-        return *this;
-    }
-    
-private:
-    Logger& logger_;
-    LogLevel level_;
-    std::ostringstream ss_;
-    bool active_;
-};
-
-/**
- * @brief Logger class for logging messages
+ * @brief Global Logger Implementation (Singleton)
+ * 
+ * Simplified logging system - just include Logger.h and use LOG_* macros anywhere.
+ * All logs are published to /log topic via callback.
  * 
  * Features:
- * - Supports DEBUG/INFO/WARN/ERROR/FATAL levels (ROS compatible)
- * - Stream-style output: LOG_INFO(logger) << "message";
- * - Real-time output to console and remote (via callback)
+ * - Zero configuration required in other files
+ * - Single initialization in main.cpp
  * - Thread-safe
- * - Configurable minimum log level filtering
+ * - Auto file/line info
+ * - Publishes to /log topic via user-provided callback
  */
-class Logger {
+class GlobalLoggerImpl {
 public:
     /**
-     * @brief Constructor
-     * @param node_name Node name identifier
-     * @param publish_callback Callback for remote publishing (optional)
+     * @brief Get singleton instance
      */
-    Logger(const std::string& node_name, 
-           LogPublishCallback publish_callback = nullptr);
+    static GlobalLoggerImpl& instance();
     
-    ~Logger() = default;
-    
-    // Disable copy
-    Logger(const Logger&) = delete;
-    Logger& operator=(const Logger&) = delete;
+    /**
+     * @brief Initialize logger with node name only (local output only)
+     * @param node_name Name of the node for log identification
+     * 
+     * Use this for local-only logging. For remote publishing,
+     * call setPublishCallback() after this.
+     */
+    static void init(const std::string& node_name);
     
     /**
      * @brief Set publish callback for remote logging
+     * Call this after init() to enable remote publishing to /log topic
      */
     void setPublishCallback(LogPublishCallback callback);
     
     /**
-     * @brief Set minimum log level for filtering
+     * @brief Set minimum log level
      */
     void setMinLevel(LogLevel level);
     
     /**
-     * @brief Get current minimum log level
+     * @brief Get minimum log level
      */
     LogLevel getMinLevel() const;
     
@@ -140,14 +111,10 @@ public:
     void setRemoteOutput(bool enabled);
     
     /**
-     * @brief Log a message at specified level
+     * @brief Log a message
      */
-    void log(LogLevel level, const std::string& message);
-    
-    /**
-     * @brief Create a log stream for stream-style logging
-     */
-    LogStream stream(LogLevel level);
+    void log(LogLevel level, const std::string& message, 
+             const char* file = nullptr, int line = 0);
     
     /**
      * @brief Get node name
@@ -155,25 +122,29 @@ public:
     const std::string& getNodeName() const { return node_name_; }
     
     /**
-     * @brief Shortcut methods for each log level
+     * @brief Check if initialized
      */
-    void debug(const std::string& msg);
-    void info(const std::string& msg);
-    void warn(const std::string& msg);
-    void error(const std::string& msg);
-    void fatal(const std::string& msg);
+    bool isInitialized() const { return initialized_; }
 
 private:
+    GlobalLoggerImpl();
+    ~GlobalLoggerImpl() = default;
+    
+    // Disable copy
+    GlobalLoggerImpl(const GlobalLoggerImpl&) = delete;
+    GlobalLoggerImpl& operator=(const GlobalLoggerImpl&) = delete;
+    
     void publish(const log_msg::LogEntry& entry);
     void outputLocal(const log_msg::LogEntry& entry);
-    log_msg::LogEntry createEntry(LogLevel level, const std::string& message);
+    log_msg::LogEntry createEntry(LogLevel level, const std::string& message,
+                                   const char* file, int line);
     
     std::string node_name_;
     LogLevel min_level_;
     bool local_output_;
     bool remote_output_;
+    bool initialized_;
     
-    // Remote publish callback
     LogPublishCallback publish_callback_;
     
     uint32_t seq_;
@@ -181,120 +152,149 @@ private:
 };
 
 /**
- * @brief Global Logger singleton (optional usage)
+ * @brief Log stream for global logger (stream-style API)
+ * 
+ * Used internally by LOG_* macros.
+ * Automatically flushes on destruction.
  */
-class GlobalLogger {
+class GlobalLogStream {
 public:
-    static Logger& instance();
-    static void init(const std::string& node_name, 
-                     LogPublishCallback publish_callback = nullptr);
-    static bool isInitialized();
+    GlobalLogStream(LogLevel level, const char* file, int line);
+    ~GlobalLogStream();
+    
+    // Disable copy
+    GlobalLogStream(const GlobalLogStream&) = delete;
+    GlobalLogStream& operator=(const GlobalLogStream&) = delete;
+    
+    // Enable move
+    GlobalLogStream(GlobalLogStream&& other) noexcept;
+    
+    // Stream operator
+    template<typename T>
+    GlobalLogStream& operator<<(const T& value) {
+        if (active_) {
+            ss_ << value;
+        }
+        return *this;
+    }
     
 private:
-    static std::unique_ptr<Logger> logger_;
-    static std::mutex mutex_;
-    static bool initialized_;
+    LogLevel level_;
+    const char* file_;
+    int line_;
+    std::ostringstream ss_;
+    bool active_;
 };
 
 } // namespace core
 
-// ==================== Convenience Macros ====================
+// ==================== Simplified Global Macros ====================
+
+/**
+ * @brief Initialize global logger (call once in main.cpp)
+ * @param name Node name for log identification
+ * 
+ * Example: LOG_INIT("fpga_driver");
+ */
+#define LOG_INIT(name) core::GlobalLoggerImpl::init(name)
 
 /**
  * @brief Stream-style logging macros
- * @example LOG_INFO(logger) << "value: " << 123;
+ * Use these anywhere after including Logger.h - no other setup needed!
+ * 
+ * Example:
+ *   LOG_INFO << "Hello world: " << 123;
+ *   LOG_WARN << "Temperature: " << temp << "°C";
+ *   LOG_ERROR << "Error code: " << err;
  */
-#define LOG_DEBUG(logger) (logger).stream(core::LogLevel::DEBUG)
-#define LOG_INFO(logger)  (logger).stream(core::LogLevel::INFO)
-#define LOG_WARN(logger)  (logger).stream(core::LogLevel::WARN)
-#define LOG_ERROR(logger) (logger).stream(core::LogLevel::ERROR)
-#define LOG_FATAL(logger) (logger).stream(core::LogLevel::FATAL)
-
-/**
- * @brief Global Logger macros
- * @example GLOG_INFO << "value: " << 123;
- */
-#define GLOG_DEBUG core::GlobalLogger::instance().stream(core::LogLevel::DEBUG)
-#define GLOG_INFO  core::GlobalLogger::instance().stream(core::LogLevel::INFO)
-#define GLOG_WARN  core::GlobalLogger::instance().stream(core::LogLevel::WARN)
-#define GLOG_ERROR core::GlobalLogger::instance().stream(core::LogLevel::ERROR)
-#define GLOG_FATAL core::GlobalLogger::instance().stream(core::LogLevel::FATAL)
+#define LOG_DEBUG core::GlobalLogStream(core::LogLevel::DEBUG, __FILE__, __LINE__)
+#define LOG_INFO  core::GlobalLogStream(core::LogLevel::INFO, __FILE__, __LINE__)
+#define LOG_WARN  core::GlobalLogStream(core::LogLevel::WARN, __FILE__, __LINE__)
+#define LOG_ERROR core::GlobalLogStream(core::LogLevel::ERROR, __FILE__, __LINE__)
+#define LOG_FATAL core::GlobalLogStream(core::LogLevel::FATAL, __FILE__, __LINE__)
 
 /**
  * @brief Conditional logging macros
- * @example LOG_INFO_IF(logger, x > 0) << "x is positive";
+ * Log only when condition is true
+ * 
+ * Example: LOG_INFO_IF(x > 0) << "x is positive: " << x;
  */
-#define LOG_DEBUG_IF(logger, cond) if(cond) LOG_DEBUG(logger)
-#define LOG_INFO_IF(logger, cond)  if(cond) LOG_INFO(logger)
-#define LOG_WARN_IF(logger, cond)  if(cond) LOG_WARN(logger)
-#define LOG_ERROR_IF(logger, cond) if(cond) LOG_ERROR(logger)
-#define LOG_FATAL_IF(logger, cond) if(cond) LOG_FATAL(logger)
-
-/**
- * @brief Throttled logging macros (log every N occurrences)
- * @example LOG_INFO_EVERY_N(logger, 100) << "periodic log";
- */
-#define LOG_EVERY_N_IMPL(logger, level, n, counter) \
-    static int counter = 0; \
-    if (++counter % (n) == 0) \
-        (logger).stream(level)
-
-#define LOG_DEBUG_EVERY_N(logger, n) LOG_EVERY_N_IMPL(logger, core::LogLevel::DEBUG, n, LOG_COUNTER_##__LINE__)
-#define LOG_INFO_EVERY_N(logger, n)  LOG_EVERY_N_IMPL(logger, core::LogLevel::INFO, n, LOG_COUNTER_##__LINE__)
-#define LOG_WARN_EVERY_N(logger, n)  LOG_EVERY_N_IMPL(logger, core::LogLevel::WARN, n, LOG_COUNTER_##__LINE__)
-#define LOG_ERROR_EVERY_N(logger, n) LOG_EVERY_N_IMPL(logger, core::LogLevel::ERROR, n, LOG_COUNTER_##__LINE__)
+#define LOG_DEBUG_IF(cond) if(cond) LOG_DEBUG
+#define LOG_INFO_IF(cond)  if(cond) LOG_INFO
+#define LOG_WARN_IF(cond)  if(cond) LOG_WARN
+#define LOG_ERROR_IF(cond) if(cond) LOG_ERROR
+#define LOG_FATAL_IF(cond) if(cond) LOG_FATAL
 
 /**
  * @brief Log only once (first occurrence)
- * @example LOG_WARN_ONCE(logger) << "This warning appears only once";
+ * 
+ * Example: LOG_WARN_ONCE << "This warning appears only once";
  */
-#define LOG_ONCE_IMPL(logger, level, flag) \
+#define LOG_ONCE_IMPL(level, flag) \
     static bool flag = false; \
     if (!flag && (flag = true)) \
-        (logger).stream(level)
+        core::GlobalLogStream(level, __FILE__, __LINE__)
 
-#define LOG_DEBUG_ONCE(logger) LOG_ONCE_IMPL(logger, core::LogLevel::DEBUG, LOG_ONCE_FLAG_##__LINE__)
-#define LOG_INFO_ONCE(logger)  LOG_ONCE_IMPL(logger, core::LogLevel::INFO, LOG_ONCE_FLAG_##__LINE__)
-#define LOG_WARN_ONCE(logger)  LOG_ONCE_IMPL(logger, core::LogLevel::WARN, LOG_ONCE_FLAG_##__LINE__)
-#define LOG_ERROR_ONCE(logger) LOG_ONCE_IMPL(logger, core::LogLevel::ERROR, LOG_ONCE_FLAG_##__LINE__)
-#define LOG_FATAL_ONCE(logger) LOG_ONCE_IMPL(logger, core::LogLevel::FATAL, LOG_ONCE_FLAG_##__LINE__)
+#define LOG_DEBUG_ONCE LOG_ONCE_IMPL(core::LogLevel::DEBUG, LOG_ONCE_FLAG_##__LINE__)
+#define LOG_INFO_ONCE  LOG_ONCE_IMPL(core::LogLevel::INFO, LOG_ONCE_FLAG_##__LINE__)
+#define LOG_WARN_ONCE  LOG_ONCE_IMPL(core::LogLevel::WARN, LOG_ONCE_FLAG_##__LINE__)
+#define LOG_ERROR_ONCE LOG_ONCE_IMPL(core::LogLevel::ERROR, LOG_ONCE_FLAG_##__LINE__)
+#define LOG_FATAL_ONCE LOG_ONCE_IMPL(core::LogLevel::FATAL, LOG_ONCE_FLAG_##__LINE__)
 
 /**
- * @brief Log only when condition changes from false to true
- * @example LOG_WARN_CHANGED(logger, voltage < 10.0) << "Low voltage!";
- * This will log only when voltage drops below 10.0, not continuously
+ * @brief Log every N occurrences
+ * 
+ * Example: LOG_INFO_EVERY_N(100) << "Processed " << count << " items";
  */
-#define LOG_CHANGED_IMPL(logger, level, cond, prev_state) \
-    static bool prev_state = false; \
-    bool _curr_state = (cond); \
-    if (_curr_state && !prev_state) \
-        (logger).stream(level); \
-    prev_state = _curr_state; \
-    if (_curr_state && !prev_state)
+#define LOG_EVERY_N_IMPL(level, n, counter) \
+    static int counter = 0; \
+    if (++counter % (n) == 0) \
+        core::GlobalLogStream(level, __FILE__, __LINE__)
 
-#define LOG_DEBUG_CHANGED(logger, cond) LOG_CHANGED_IMPL(logger, core::LogLevel::DEBUG, cond, LOG_PREV_##__LINE__)
-#define LOG_INFO_CHANGED(logger, cond)  LOG_CHANGED_IMPL(logger, core::LogLevel::INFO, cond, LOG_PREV_##__LINE__)
-#define LOG_WARN_CHANGED(logger, cond)  LOG_CHANGED_IMPL(logger, core::LogLevel::WARN, cond, LOG_PREV_##__LINE__)
-#define LOG_ERROR_CHANGED(logger, cond) LOG_CHANGED_IMPL(logger, core::LogLevel::ERROR, cond, LOG_PREV_##__LINE__)
-#define LOG_FATAL_CHANGED(logger, cond) LOG_CHANGED_IMPL(logger, core::LogLevel::FATAL, cond, LOG_PREV_##__LINE__)
+#define LOG_DEBUG_EVERY_N(n) LOG_EVERY_N_IMPL(core::LogLevel::DEBUG, n, LOG_COUNTER_##__LINE__)
+#define LOG_INFO_EVERY_N(n)  LOG_EVERY_N_IMPL(core::LogLevel::INFO, n, LOG_COUNTER_##__LINE__)
+#define LOG_WARN_EVERY_N(n)  LOG_EVERY_N_IMPL(core::LogLevel::WARN, n, LOG_COUNTER_##__LINE__)
+#define LOG_ERROR_EVERY_N(n) LOG_EVERY_N_IMPL(core::LogLevel::ERROR, n, LOG_COUNTER_##__LINE__)
+
+/**
+ * @brief Log when condition changes from false to true
+ * 
+ * Example: LOG_WARN_CHANGED(voltage < 10.0) << "Low voltage!";
+ */
+#define LOG_CHANGED_IMPL(level, cond, prev_state) \
+    static bool prev_state = false; \
+    bool _curr_state_##__LINE__ = (cond); \
+    if (_curr_state_##__LINE__ && !prev_state) \
+        core::GlobalLogStream(level, __FILE__, __LINE__); \
+    prev_state = _curr_state_##__LINE__; \
+    if (_curr_state_##__LINE__ && !prev_state)
+
+#define LOG_DEBUG_CHANGED(cond) LOG_CHANGED_IMPL(core::LogLevel::DEBUG, cond, LOG_PREV_##__LINE__)
+#define LOG_INFO_CHANGED(cond)  LOG_CHANGED_IMPL(core::LogLevel::INFO, cond, LOG_PREV_##__LINE__)
+#define LOG_WARN_CHANGED(cond)  LOG_CHANGED_IMPL(core::LogLevel::WARN, cond, LOG_PREV_##__LINE__)
+#define LOG_ERROR_CHANGED(cond) LOG_CHANGED_IMPL(core::LogLevel::ERROR, cond, LOG_PREV_##__LINE__)
+#define LOG_FATAL_CHANGED(cond) LOG_CHANGED_IMPL(core::LogLevel::FATAL, cond, LOG_PREV_##__LINE__)
 
 /**
  * @brief Log at most once per time interval (in milliseconds)
- * @example LOG_WARN_THROTTLE(logger, 1000) << "This logs at most once per second";
+ * 
+ * Example: 
+ *   LOG_WARN_THROTTLE(1000) << "This logs at most once per second";
+ *   LOG_THROTTLE_END
  */
-#define LOG_THROTTLE_IMPL(logger, level, interval_ms, last_time) \
+#define LOG_THROTTLE_IMPL(level, interval_ms, last_time) \
     static auto last_time = std::chrono::steady_clock::now() - std::chrono::milliseconds(interval_ms); \
-    auto _now = std::chrono::steady_clock::now(); \
-    if (std::chrono::duration_cast<std::chrono::milliseconds>(_now - last_time).count() >= interval_ms) { \
-        last_time = _now; \
-        (logger).stream(level)
+    auto _now_##__LINE__ = std::chrono::steady_clock::now(); \
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(_now_##__LINE__ - last_time).count() >= interval_ms) { \
+        last_time = _now_##__LINE__; \
+        core::GlobalLogStream(level, __FILE__, __LINE__)
 
 #define LOG_THROTTLE_END }
 
-#define LOG_DEBUG_THROTTLE(logger, ms) LOG_THROTTLE_IMPL(logger, core::LogLevel::DEBUG, ms, LOG_THROTTLE_##__LINE__)
-#define LOG_INFO_THROTTLE(logger, ms)  LOG_THROTTLE_IMPL(logger, core::LogLevel::INFO, ms, LOG_THROTTLE_##__LINE__)
-#define LOG_WARN_THROTTLE(logger, ms)  LOG_THROTTLE_IMPL(logger, core::LogLevel::WARN, ms, LOG_THROTTLE_##__LINE__)
-#define LOG_ERROR_THROTTLE(logger, ms) LOG_THROTTLE_IMPL(logger, core::LogLevel::ERROR, ms, LOG_THROTTLE_##__LINE__)
-#define LOG_FATAL_THROTTLE(logger, ms) LOG_THROTTLE_IMPL(logger, core::LogLevel::FATAL, ms, LOG_THROTTLE_##__LINE__)
+#define LOG_DEBUG_THROTTLE(ms) LOG_THROTTLE_IMPL(core::LogLevel::DEBUG, ms, LOG_THROTTLE_##__LINE__)
+#define LOG_INFO_THROTTLE(ms)  LOG_THROTTLE_IMPL(core::LogLevel::INFO, ms, LOG_THROTTLE_##__LINE__)
+#define LOG_WARN_THROTTLE(ms)  LOG_THROTTLE_IMPL(core::LogLevel::WARN, ms, LOG_THROTTLE_##__LINE__)
+#define LOG_ERROR_THROTTLE(ms) LOG_THROTTLE_IMPL(core::LogLevel::ERROR, ms, LOG_THROTTLE_##__LINE__)
+#define LOG_FATAL_THROTTLE(ms) LOG_THROTTLE_IMPL(core::LogLevel::FATAL, ms, LOG_THROTTLE_##__LINE__)
 
 #endif // LOGGER_H
