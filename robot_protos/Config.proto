@@ -27,14 +27,13 @@ enum ConfigType {
 
 message ConfigStamped {
   std_msg.Header header = 1;
-  bool transmit = 2;
-  Module module = 3;
-  Motor motor = 4;
-  ConfigMode mode = 5;
-  ConfigType type = 6;
-  int32 address = 7;
-  float value_f = 8;
-  int32 value_i = 9;
-  int32 error_code = 10;
+  Module module = 2;
+  Motor motor = 3;
+  ConfigMode mode = 4;
+  ConfigType type = 5;
+  int32 address = 6;
+  float value_f = 7;
+  int32 value_i = 8;
+  int32 error_code = 9;
   
 }
