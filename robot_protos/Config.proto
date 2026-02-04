@@ -13,6 +13,7 @@ enum Module {
 enum Motor {
   MOTOR_R = 0;
   MOTOR_L = 1;
+  MOTOR_H = 2;
 }
 
 enum ConfigMode {

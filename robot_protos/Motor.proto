@@ -14,23 +14,31 @@ enum MOTORMODE {
 message MotorCmd {
     double theta = 1;
     double beta = 2;
-    double kp_r = 3;
-    double kp_l = 4;
-    double ki_r = 5;
-    double ki_l = 6;
-    double kd_r = 7;
-    double kd_l = 8;
-    double torque_r = 9;
-    double torque_l = 10;
+    double gamma = 3
+    double kp_r = 4;
+    double kp_l = 5;
+    double kp_h = 6;
+    double ki_r = 7;
+    double ki_l = 8;
+    double kp_h = 9;
+    double kd_r = 10;
+    double kd_l = 11;
+    double kp_h = 12;
+    double torque_r = 13;
+    double torque_l = 14;
+    double torque_h = 15;
 }
 
 message MotorState {
     double theta = 1;
     double beta = 2;
-    double velocity_r = 3;
-    double velocity_l = 4;
-    double torque_r = 5;
-    double torque_l = 6;
+    double gamma = 3;
+    double velocity_r = 4;
+    double velocity_l = 5;
+    double velocity_h = 6
+    double torque_r = 7;
+    double torque_l = 8;
+    double torque_h = 9;
 }
 
 message MotorCmdStamped {
