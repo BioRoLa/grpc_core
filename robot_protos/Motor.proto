@@ -14,7 +14,7 @@ enum MOTORMODE {
 message MotorCmd {
     double theta = 1;
     double beta = 2;
-    double gamma = 3
+    double gamma = 3;
     double kp_r = 4;
     double kp_l = 5;
     double kp_h = 6;
@@ -35,7 +35,7 @@ message MotorState {
     double gamma = 3;
     double velocity_r = 4;
     double velocity_l = 5;
-    double velocity_h = 6
+    double velocity_h = 6;
     double torque_r = 7;
     double torque_l = 8;
     double torque_h = 9;
