@@ -20,10 +20,10 @@ message MotorCmd {
     double kp_h = 6;
     double ki_r = 7;
     double ki_l = 8;
-    double kp_h = 9;
+    double ki_h = 9;
     double kd_r = 10;
     double kd_l = 11;
-    double kp_h = 12;
+    double kd_h = 12;
     double torque_r = 13;
     double torque_l = 14;
     double torque_h = 15;
