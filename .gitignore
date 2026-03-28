@@ -1,2 +1,4 @@
 build/**
 .vscode/**
+# Ignore build artifacts and logs generated for docker builds
+build_docker/**
