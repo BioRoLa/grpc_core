@@ -18,7 +18,7 @@ This project is a light-weight publisher-subscriber/service(Server-Client) commu
 - **Robot Protocol Definitions**: 
   - `Config.proto`: Configuration message definitions (40 lines)
   - `Log.proto`: Log message definitions for the logging system (21 lines)
-  - `Robot.proto`: Robot mode and command messages with ROBOTMODE enum (SYSTEM_ON, INIT, IDLE, STANDBY, MOTORCONFIG)
+  - `Robot.proto`: Robot mode and command messages with ROBOTMODE enum (UNINITIALIZED, INIT, IDLE, ACTIVE, CONFIG)
   
 - **Enhanced Motor and Power Protocols**:
   - Motor.proto: Added 9 new lines of motor control definitions

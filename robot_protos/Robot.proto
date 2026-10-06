@@ -4,11 +4,11 @@ package robot_msg;
 import "std.proto";
 
 enum ROBOTMODE {
-    SYSTEM_ON=0;
+    UNINITIALIZED=0;  // motors off (was SYSTEM_ON)
     INIT=1;
     IDLE=2;
-    STANDBY=3;
-    MOTORCONFIG=4;
+    ACTIVE=3;         // commands accepted (was STANDBY)
+    CONFIG=4;         // motor config (was MOTORCONFIG)
 }
 
 message RobotCmdStamped {
